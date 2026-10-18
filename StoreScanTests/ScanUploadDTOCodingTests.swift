@@ -214,4 +214,59 @@ final class ScanUploadDTOCodingTests: XCTestCase {
             XCTAssertTrue(try XCTUnwrap(dimensions[key]).doubleValue.isFinite)
         }
     }
+
+    // MARK: - Debug-only demo scan fixture (see DemoScanFixture.swift):
+    // the exact same strictness applies to it as to a real RoomPlan-derived
+    // DTO, since it goes through the same APIClient.uploadScan /
+    // POST /api/scans path.
+
+    func testDemoScanFixtureMatchesBackendSchemaShape() throws {
+        let storeId = UUID()
+        let targetLayoutId = UUID()
+        let dto = DemoScanFixture.makeUploadDTO(scanId: fixtureScanId, storeId: storeId, targetLayoutId: targetLayoutId)
+        let json = try encodeToJSONObject(dto)
+
+        XCTAssertEqual(json["dtoVersion"] as? Int, 1)
+        XCTAssertEqual(json["scanId"] as? String, fixtureScanId.uuidString)
+        XCTAssertEqual(json["storeId"] as? String, storeId.uuidString)
+        XCTAssertEqual(json["targetLayoutId"] as? String, targetLayoutId.uuidString)
+        XCTAssertEqual(json["units"] as? String, "meters")
+
+        let surfaces = try XCTUnwrap(json["surfaces"] as? [[String: Any]])
+        XCTAssertFalse(surfaces.isEmpty)
+        for surface in surfaces {
+            XCTAssertTrue(surface.keys.contains("polygonCorners"), "polygonCorners must always be present (null or array)")
+            let transform = try XCTUnwrap(surface["transform"] as? [Any])
+            XCTAssertEqual(transform.count, 16)
+        }
+
+        let objects = try XCTUnwrap(json["objects"] as? [[String: Any]])
+        XCTAssertFalse(objects.isEmpty)
+
+        // Must be unmistakably non-real data, using only fields the frozen
+        // contract already permits as free text (never an invented field).
+        let device = try XCTUnwrap(json["device"] as? [String: Any])
+        let model = try XCTUnwrap(device["model"] as? String)
+        XCTAssertTrue(model.localizedCaseInsensitiveContains("demo"), "demo fixture must be clearly labeled as non-real in device.model")
+    }
+
+    func testDemoScanFixtureFloorHasAtLeastThreePolygonCorners() throws {
+        let dto = DemoScanFixture.makeUploadDTO(scanId: fixtureScanId, storeId: UUID(), targetLayoutId: nil)
+        let floor = try XCTUnwrap(dto.surfaces.first { $0.kind == .floor })
+        let corners = try XCTUnwrap(floor.polygonCorners)
+        XCTAssertGreaterThanOrEqual(corners.count, 3)
+    }
+
+    func testDemoScanFixtureAcceptsNilTargetLayoutId() throws {
+        let dto = DemoScanFixture.makeUploadDTO(scanId: fixtureScanId, storeId: UUID(), targetLayoutId: nil)
+        let json = try encodeToJSONObject(dto)
+        XCTAssertTrue(json["targetLayoutId"] is NSNull, "nullable(), not optional(): nil must encode as explicit JSON null")
+    }
+
+    func testDemoScanFixtureRoundTripsThroughCodable() throws {
+        let original = DemoScanFixture.makeUploadDTO(scanId: fixtureScanId, storeId: UUID(), targetLayoutId: UUID())
+        let data = try ScanDTOEncoding.makeEncoder().encode(original)
+        let decoded = try ScanDTOEncoding.makeDecoder().decode(ScanUploadDTO.self, from: data)
+        XCTAssertEqual(decoded, original)
+    }
 }

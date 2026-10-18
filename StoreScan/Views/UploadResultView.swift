@@ -11,15 +11,27 @@ struct UploadResultView: View {
     var body: some View {
         VStack(spacing: 20) {
             switch outcome {
-            case let .success(scanId, reviewURLBase):
+            case let .success(scanId, reviewURLBase, isDemo):
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 56))
                     .foregroundStyle(.green)
-                Text("Скан отправлен").font(.title2.bold())
-                Text("Он появится как черновик в веб-приложении — планировка не изменится, пока менеджер не проверит и не применит скан.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                if isDemo {
+                    Text("ДЕМО-ДАННЫЕ")
+                        .font(.caption.bold())
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.orange, in: Capsule())
+                        .foregroundStyle(.white)
+                }
+                Text(isDemo ? "Демо-скан отправлен" : "Скан отправлен").font(.title2.bold())
+                Text(
+                    isDemo
+                        ? "Это тестовые данные, отправленные через настоящий API — не результат реального сканирования. Он появится как черновик в веб-приложении и не изменит планировку, пока менеджер не применит его."
+                        : "Он появится как черновик в веб-приложении — планировка не изменится, пока менеджер не проверит и не применит скан."
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
 
                 if let reviewURL = URL(string: "/scans/\(scanId.uuidString)", relativeTo: reviewURLBase) {
                     Link(destination: reviewURL) {
@@ -52,6 +64,6 @@ struct UploadResultView: View {
 }
 
 #Preview {
-    UploadResultView(outcome: .success(scanId: UUID(), reviewURLBase: URL(string: "http://localhost:3000")!))
+    UploadResultView(outcome: .success(scanId: UUID(), reviewURLBase: URL(string: "http://localhost:3000")!, isDemo: false))
         .environmentObject(AppState())
 }

@@ -15,7 +15,10 @@ enum AppScreen: Equatable {
 }
 
 enum UploadOutcome: Equatable {
-    case success(scanId: UUID, reviewURLBase: URL)
+    /// `isDemo` is purely a local UI flag (never part of the wire DTO): it
+    /// tells UploadResultView to visibly label the result as test data from
+    /// the Debug-only demo-scan path, never a real RoomPlan capture.
+    case success(scanId: UUID, reviewURLBase: URL, isDemo: Bool)
     case failure(String)
 }
 
