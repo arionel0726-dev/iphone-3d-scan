@@ -19,21 +19,25 @@ enum ScanCaptureState: Equatable {
     case failed(String)
 }
 
-/// Bridges RoomPlan's UIKit delegate callbacks into SwiftUI state. Owns the
-/// one RoomCaptureView/RoomCaptureSession for the lifetime of a single scan
-/// screen.
+/// Bridges RoomPlan's results into SwiftUI state for the scan screen. The
+/// actual RoomCaptureView/RoomCaptureViewDelegate/RoomCaptureSessionDelegate
+/// plumbing lives in RoomCaptureViewController (a UIViewController, which is
+/// why: RoomCaptureViewDelegate inherits NSCoding, and only a Cocoa class
+/// that genuinely supports it — not a plain NSObject — satisfies that for
+/// free). This type stays a plain ObservableObject and talks to the view
+/// controller only through its small `run()`/`stop()` surface plus the two
+/// result callbacks below.
 @MainActor
-final class ScanCaptureCoordinator: NSObject, ObservableObject {
+final class ScanCaptureCoordinator: ObservableObject {
     @Published private(set) var state: ScanCaptureState = .idle
     private(set) var capturedRoom: CapturedRoom?
 
-    let captureView: RoomCaptureView
+    let viewController = RoomCaptureViewController()
 
-    override init() {
-        captureView = RoomCaptureView(frame: .zero)
-        super.init()
-        captureView.delegate = self
-        captureView.captureSession.delegate = self
+    private var wasCancelled = false
+
+    init() {
+        viewController.resultHandler = self
     }
 
     func start() {
@@ -44,14 +48,14 @@ final class ScanCaptureCoordinator: NSObject, ObservableObject {
 
         capturedRoom = nil
         state = .scanning
-        captureView.captureSession.run(configuration: RoomCaptureSession.Configuration())
+        viewController.run()
     }
 
     /// "Завершить": stop and keep whatever RoomPlan finishes processing.
     func finish() {
         guard state == .scanning else { return }
         state = .processing
-        captureView.captureSession.stop()
+        viewController.stop()
     }
 
     /// "Отмена": stop and discard the result once it arrives.
@@ -59,7 +63,7 @@ final class ScanCaptureCoordinator: NSObject, ObservableObject {
         guard state == .scanning || state == .processing else { return }
         wasCancelled = true
         state = .processing
-        captureView.captureSession.stop()
+        viewController.stop()
     }
 
     func reset() {
@@ -68,40 +72,23 @@ final class ScanCaptureCoordinator: NSObject, ObservableObject {
         state = .idle
     }
 
-    private var wasCancelled = false
-}
-
-extension ScanCaptureCoordinator: RoomCaptureViewDelegate {
-    nonisolated func captureView(shouldPresent roomDataForProcessing: CapturedRoomData, error: Error?) -> Bool {
-        true
-    }
-
-    nonisolated func captureView(didPresent processedResult: CapturedRoom, error: Error?) {
-        Task { @MainActor in
-            if let error {
-                state = .failed(describeCaptureError(error))
-                return
-            }
-
-            if wasCancelled {
-                state = .cancelled
-                return
-            }
-
-            capturedRoom = processedResult
-            let wallCount = processedResult.walls.count
-            let objectCount = processedResult.objects.count
-            state = .finished(roomSummary: "Стен: \(wallCount) · объектов: \(objectCount)")
-        }
-    }
-}
-
-extension ScanCaptureCoordinator: RoomCaptureSessionDelegate {
-    nonisolated func captureSession(_ session: RoomCaptureSession, didEndWith data: CapturedRoomData, error: Error?) {
-        guard let error else { return }
-        Task { @MainActor in
+    func handleCaptureResult(_ room: CapturedRoom, error: Error?) {
+        if let error {
             state = .failed(describeCaptureError(error))
+            return
         }
+
+        if wasCancelled {
+            state = .cancelled
+            return
+        }
+
+        capturedRoom = room
+        state = .finished(roomSummary: "Стен: \(room.walls.count) · объектов: \(room.objects.count)")
+    }
+
+    func handleSessionError(_ error: Error) {
+        state = .failed(describeCaptureError(error))
     }
 }
 

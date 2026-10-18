@@ -1,16 +1,18 @@
-import RoomPlan
 import SwiftUI
 
-/// Embeds RoomPlan's UIKit `RoomCaptureView` (the camera feed, AR overlays
-/// and built-in scanning guidance) in SwiftUI. All scan lifecycle control
-/// (start/finish/cancel) happens through ScanCaptureCoordinator, which owns
-/// the view — this wrapper just displays it.
-struct RoomCaptureRepresentable: UIViewRepresentable {
+/// Embeds RoomPlan's RoomCaptureViewController (the camera feed, AR overlays
+/// and built-in scanning guidance) in SwiftUI. A view CONTROLLER wrapper
+/// (not UIViewRepresentable) because the delegate conformances that make
+/// RoomPlan work live on that controller — see RoomCaptureViewController.swift
+/// for why. All scan lifecycle control (start/finish/cancel) happens through
+/// ScanCaptureCoordinator, which owns the controller — this wrapper just
+/// displays it.
+struct RoomCaptureRepresentable: UIViewControllerRepresentable {
     let coordinator: ScanCaptureCoordinator
 
-    func makeUIView(context: Context) -> RoomCaptureView {
-        coordinator.captureView
+    func makeUIViewController(context: Context) -> RoomCaptureViewController {
+        coordinator.viewController
     }
 
-    func updateUIView(_ uiView: RoomCaptureView, context: Context) {}
+    func updateUIViewController(_ uiViewController: RoomCaptureViewController, context: Context) {}
 }
