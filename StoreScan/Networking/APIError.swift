@@ -43,7 +43,26 @@ enum APIError: Error, LocalizedError, Equatable {
             if status == 409 {
                 return "Планировка изменилась на сервере. Обновите данные и повторите."
             }
+            if let translated = Self.knownMessages[message] {
+                return translated
+            }
             return message.isEmpty ? "Сервер вернул ошибку (\(status))." : message
         }
     }
+
+    /// Mirrors front/src/lib/api.ts's getApiErrorMessage dictionary on the
+    /// web app, so the same backend error text reads the same way in both
+    /// clients instead of showing raw English here.
+    private static let knownMessages: [String: String] = [
+        "Authentication required": "Требуется войти в аккаунт",
+        "Authentication unavailable": "Сервис авторизации временно недоступен",
+        "Invalid email or password": "Неверная электронная почта или пароль",
+        "Invalid credentials": "Неверная электронная почта или пароль",
+        "Invalid password": "Неверная электронная почта или пароль",
+        "User not found": "Неверная электронная почта или пароль",
+        "Store not found": "Магазин не найден",
+        "Layout not found": "Планировка не найдена",
+        "Scan not found": "Скан не найден",
+        "Internal server error": "Внутренняя ошибка сервера",
+    ]
 }

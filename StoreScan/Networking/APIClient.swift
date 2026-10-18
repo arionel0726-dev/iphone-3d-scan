@@ -141,12 +141,21 @@ final class APIClient {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            if httpResponse.statusCode == 401 {
+            let parsedMessage = (try? JSONDecoder().decode(APIErrorBody.self, from: data))
+            let message = parsedMessage?.error ?? parsedMessage?.message ?? ""
+
+            // A 401 only means "your session is no longer valid" for a
+            // request that carried a bearer token in the first place.
+            // POST /api/auth/sign-in/email itself answers wrong
+            // credentials with 401 too (e.g. Better Auth's "User not
+            // found") — requiresAuth is false there, so that case falls
+            // through to .server below and keeps the real message instead
+            // of being misreported as an expired session.
+            if requiresAuth, httpResponse.statusCode == 401 {
                 KeychainTokenStore.clear()
                 throw APIError.sessionExpired
             }
-            let parsedMessage = (try? JSONDecoder().decode(APIErrorBody.self, from: data))
-            let message = parsedMessage?.error ?? parsedMessage?.message ?? ""
+
             throw APIError.server(status: httpResponse.statusCode, message: message)
         }
 
